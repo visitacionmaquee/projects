@@ -12,7 +12,9 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(false);
   
   const [habits, setHabits] = useState([]);
-  const [activeTab, setActiveTab] = useState('habits');
+  
+  // FIX 1: Default landing page is now set to 'dashboard' instead of 'habits'
+  const [activeTab, setActiveTab] = useState('dashboard');
 
   // 1. Listen for Authentication Changes
   useEffect(() => {
@@ -58,7 +60,7 @@ export default function App() {
     setAuthLoading(true);
     const formattedUsername = username.trim().toLowerCase();
   
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email: identifier.trim(),
       password: password,
       options: {
@@ -158,7 +160,7 @@ export default function App() {
   
   // Calculate Streaks dynamically for Phase 2 dashboards
   const currentStreakMax = habits.length > 0 ? Math.max(...habits.map(h => h.streak || 0)) : 0;
-  const longestStreakMax = habits.length > 0 ? Math.max(...habits.map(h => h.streak || 0)) : 0; // Fallback placeholder logic for longest calculation
+  const longestStreakMax = habits.length > 0 ? Math.max(...habits.map(h => h.streak || 0)) : 0; 
 
   // Extract display name from user metadata or clean email
   const displayName = user?.user_metadata?.username || user?.email?.split('@')[0] || 'User';
@@ -232,46 +234,59 @@ export default function App() {
         <button className="logout-btn" onClick={handleLogout}>🚪 Log Out</button>
       </aside>
 
-      {/* Main Workspace Workspace */}
+      {/* Main Workspace */}
       <main className="main-content">
-        <header style={{ marginBottom: '2rem' }}>
-          <h1>Welcome back, {displayName}</h1>
-          <p style={{ color: 'var(--text-muted)' }}>Here is your consistency overview for today.</p>
-        </header>
+        
+        {/* FIX 2: Encapsulated Welcoming Headers, 4-Grid section, and Progress Level Tracker strictly inside the Dashboard tab */}
+        {activeTab === 'dashboard' && (
+          <>
+            <header style={{ marginBottom: '2rem' }}>
+              <h1>Welcome back, {displayName}</h1>
+              <p style={{ color: 'var(--text-muted)' }}>Here is your consistency overview for today.</p>
+            </header>
 
-        {/* Complete Phase 2 Analytics 4-Grid Section */}
-        <section className="stats-grid">
-          <div className="stat-card">
-            <span className="stat-label">🔥 Current Streak</span>
-            <span className="stat-value">{currentStreakMax} Days</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-label">📈 Completion Rate</span>
-            <span className="stat-value">{completionRate}%</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-label">🏆 Longest Streak</span>
-            <span className="stat-value">{longestStreakMax} Days</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-label">✅ Habits Completed Today</span>
-            <span className="stat-value">{completedToday} / {totalHabits}</span>
-          </div>
-        </section>
+            {/* Complete Phase 2 Analytics 4-Grid Section */}
+            <section className="stats-grid">
+              <div className="stat-card">
+                <span className="stat-label">🔥 Current Streak</span>
+                <span className="stat-value">{currentStreakMax} Days</span>
+              </div>
+              <div className="stat-card">
+                <span className="stat-label">📈 Completion Rate</span>
+                <span className="stat-value">{completionRate}%</span>
+              </div>
+              <div className="stat-card">
+                <span className="stat-label">🏆 Longest Streak</span>
+                <span className="stat-value">{longestStreakMax} Days</span>
+              </div>
+              <div className="stat-card">
+                <span className="stat-label">✅ Habits Completed Today</span>
+                <span className="stat-value">{completedToday} / {totalHabits}</span>
+              </div>
+            </section>
 
-        {/* Global Progress Level Tracker */}
-        <div className="progress-container">
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
-            <span style={{ fontWeight: '500' }}>Today's Target Progress</span>
-            <span style={{ color: 'var(--text-muted)' }}>{completionRate}% Complete</span>
-          </div>
-          <div className="progress-bar-wrapper">
-            <div className="progress-bar-fill" style={{ width: `${completionRate}%` }}></div>
-          </div>
-        </div>
+            {/* Global Progress Level Tracker */}
+            <div className="progress-container">
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                <span style={{ fontWeight: '500' }}>Today's Target Progress</span>
+                <span style={{ color: 'var(--text-muted)' }}>{completionRate}% Complete</span>
+              </div>
+              <div className="progress-bar-wrapper">
+                <div className="progress-bar-fill" style={{ width: `${completionRate}%` }}></div>
+              </div>
+            </div>
+          </>
+        )}
 
-        {activeTab === 'habits' ? (
+        {/* Habits Tab Panel */}
+        {activeTab === 'habits' && (
           <div>
+            {/* Contextual clean header for the tracking space */}
+            <header style={{ marginBottom: '2rem' }}>
+              <h1>My Tracking Space</h1>
+              <p style={{ color: 'var(--text-muted)' }}>Create and manage your current daily routines.</p>
+            </header>
+
             <div className="habit-form-box">
               <form onSubmit={handleAddHabit}>
                 <div className="form-row">
@@ -324,7 +339,10 @@ export default function App() {
               )}
             </div>
           </div>
-        ) : (
+        )}
+
+        {/* Universal Fallback for upcoming panel tabs */}
+        {!['dashboard', 'habits'].includes(activeTab) && (
           <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
             {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} space workspace view and modules coming soon!
           </div>
