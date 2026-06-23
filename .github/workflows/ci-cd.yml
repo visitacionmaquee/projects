@@ -25,7 +25,7 @@ jobs:
 
     - name: Run Linter
       run: npm run lint
-      continue-on-error: true # Prevents strict ESLint rules from blocking your build early on
+      continue-on-error: true
 
     - name: Run Unit Tests
       run: npm run test
