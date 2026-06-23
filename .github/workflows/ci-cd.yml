@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [ main ]
 
+# This tells GitHub to run every single npm command inside your subfolder
+defaults:
+  run:
+    working-directory: ./habit-tracker-cicd
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -18,10 +23,9 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '22'
-        # Cache removed to prevent the setup-node blocker
 
     - name: Install Dependencies
-      run: npm install # Changed from 'npm ci' to 'npm install' to ensure it builds regardless of lockfile state
+      run: npm install
 
     - name: Run Linter
       run: npm run lint
