@@ -73,8 +73,98 @@ export default function App() {
         {/* Temporary warning/placeholder while building tabs */}
         {activeTab === 'habits' ? (
           <div>
-            {/* We will drop our upgraded habit creation form and cards right here next! */}
-            <p style={{ color: 'var(--text-muted)' }}>Habit listing loading...</p>
+            {/* Interactive Habit Creator Form */}
+            <div className="habit-form-box">
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const name = e.target.habitName.value.trim();
+                const category = e.target.habitCategory.value;
+                if (!name) return;
+
+                const newHabit = {
+                  id: crypto.randomUUID(),
+                  name,
+                  category,
+                  completedToday: false,
+                  streak: 0,
+                  lastCompleted: 'Never',
+                  completionRate: 100
+                };
+
+                setHabits([...habits, newHabit]);
+                e.target.reset();
+              }}>
+                <div className="form-row">
+                  <input name="habitName" type="text" placeholder="What habit are we building today?..." maxLength={40} required />
+                  <select name="habitCategory" defaultValue="Learning">
+                    <option value="Fitness">💪 Fitness</option>
+                    <option value="Learning">📚 Learning</option>
+                    <option value="Gaming">🎮 Gaming</option>
+                    <option value="Finance">💰 Finance</option>
+                    <option value="Mental Health">🧠 Mental Health</option>
+                  </select>
+                </div>
+                <button type="submit" className="submit-btn">Create Custom Habit</button>
+              </form>
+            </div>
+
+            {/* Enhanced Habit Cards Grid View */}
+            <div className="habits-grid">
+              {habits.length === 0 ? (
+                <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No habits tracked in this space yet. Add one above!</p>
+              ) : (
+                habits.map((habit) => {
+                  // Resolve category classes
+                  const catClass = habit.category ? habit.category.toLowerCase().replace(' ', '-') : 'learning';
+                  
+                  return (
+                    <div key={habit.id} className={`enhanced-card ${habit.completedToday ? 'is-completed' : ''}`}>
+                      <div className="card-header">
+                        <div className="card-title">
+                          <span>{habit.category === 'Fitness' ? '💪' : habit.category === 'Learning' ? '📚' : habit.category === 'Gaming' ? '🎮' : habit.category === 'Finance' ? '💰' : '🧠'}</span>
+                          {habit.name}
+                        </div>
+                        <span className={`category-tag cat-${catClass}`}>{habit.category || 'General'}</span>
+                      </div>
+
+                      <div className="card-stats">
+                        <span>🔥 Streak: <strong>{habit.streak} Days</strong></span>
+                        <span>📅 Last Completed: <strong>{habit.completedToday ? 'Today' : habit.lastCompleted}</strong></span>
+                        <span>📊 Completion Rate: <strong>{habit.completionRate}%</strong></span>
+                      </div>
+
+                      <div className="card-actions">
+                        <button 
+                          className="action-btn complete-toggle"
+                          onClick={() => {
+                            setHabits(habits.map(h => {
+                              if (h.id === habit.id) {
+                                const nextState = !h.completedToday;
+                                return {
+                                  ...h,
+                                  completedToday: nextState,
+                                  streak: nextState ? h.streak + 1 : Math.max(0, h.streak - 1),
+                                  lastCompleted: nextState ? 'Today' : 'Yesterday'
+                                };
+                              }
+                              return h;
+                            }));
+                          }}
+                        >
+                          {habit.completedToday ? '✓ Completed' : 'Mark Complete'}
+                        </button>
+                        <button 
+                          className="action-btn delete-toggle"
+                          onClick={() => setHabits(habits.filter(h => h.id !== habit.id))}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         ) : (
           <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
