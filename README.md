@@ -1,7 +1,7 @@
 # 🎯 Habit Spark
 Habit Spark is a premium, cloud-synced habit tracking web application designed with a sleek dark-themed user interface. Built using React.js and Supabase, it empowers users to build routines, track historical consistency, unlock milestone achievements, and maintain their data securely across multiple devices.
 
-⚡ Core Features
+# ⚡ Core Features
 Intelligent Dashboard: Live calculations for critical consistency metrics, including current streak, longest streak, overall completion rates, and an interactive progress bar.
 
 Automatic Maintenance Engine: Native client-side automation handles midnight resets and computes daily streak decays if a routine is broken.
@@ -14,7 +14,7 @@ Secure Profile Control: A unified settings control deck allowing users to update
 
 Robust Authentication Pipeline: Direct email-based or username-based login flows backed securely by Supabase GoTrue Auth.
 
-🛠️ Tech Stack
+# 🛠️ Tech Stack
 Frontend Framework: React.js (Vite)
 
 Backend & Authentication: Supabase Auth
@@ -23,7 +23,7 @@ Database layer: Supabase PostgreSQL (Postgres)
 
 Styling: Custom Vanilla CSS3 (Premium Dark Archetype)
 
-🚀 Getting Started
+# 🚀 Getting Started
 Prerequisites
 Ensure you have Node.js (v18+) and npm installed on your local development engine.
 
@@ -76,14 +76,14 @@ user_id (uuid) -> References auth.users.id
 
 logged_date (text) -> Format: YYYY-MM-DD
 
-💻 Local Development Workflow
+# 💻 Local Development Workflow
 To boot up the local development compilation server, execute:
 
 Bash
 npm run dev
 Open http://localhost:5173 inside your browser to interact with the runtime build.
 
-Developer: Engr. Maquee Reinhart P. Visitacion
+# Developer: Engr. Maquee Reinhart P. Visitacion
 
 📦 Production Deployment
 This repository is pre-configured for seamless deployments via Vercel or Netlify. Simply connect your GitHub repository to your host instance and pass your environmental parameters (VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY) into your deployment console settings.
