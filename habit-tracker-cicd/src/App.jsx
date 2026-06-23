@@ -4,7 +4,7 @@ import './App.css';
 
 export default function App() {
   const [user, setUser] = useState(null);
-  const [identifier, setIdentifier] = useState(''); 
+  const [identifier, setIdentifier] = useState(''); // Holds username or email input
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [username, setUsername] = useState('');
@@ -42,7 +42,6 @@ export default function App() {
   }, [user]);
 
   const fetchHabitsAndLogs = async () => {
-    // Fetch Habits
     const { data: habitsData, error: habitsError } = await supabase
       .from('habits')
       .select('*')
@@ -51,7 +50,6 @@ export default function App() {
     if (habitsError) console.error('Error fetching habits:', habitsError.message);
     else setHabits(habitsData || []);
 
-    // Fetch Historical Logs
     const { data: logsData, error: logsError } = await supabase
       .from('habit_logs')
       .select('*');
@@ -131,17 +129,15 @@ export default function App() {
     const todayStr = getTodayString();
 
     if (nextState) {
-      // Adding completion snapshot AND writing to historical ledger
       const { error: logError } = await supabase
         .from('habit_logs')
         .insert([{ habit_id: id, user_id: user.id, logged_date: todayStr }]);
 
-      if (logError && logError.code !== '23505') { // Ignore unique constraint bypasses
+      if (logError && logError.code !== '23505') { 
         alert("Failed to log historical progress.");
         return;
       }
     } else {
-      // Unchecking: Remove the specific day log from history
       await supabase
         .from('habit_logs')
         .delete()
@@ -149,7 +145,6 @@ export default function App() {
         .eq('logged_date', todayStr);
     }
 
-    // Update main tracking table state
     const { error } = await supabase
       .from('habits')
       .update({ completed_today: nextState, streak: nextStreak })
@@ -159,7 +154,6 @@ export default function App() {
       alert(error.message);
     } else {
       setHabits(habits.map(h => h.id === id ? { ...h, completed_today: nextState, streak: nextStreak } : h));
-      // Re-trigger internal state synchronization
       fetchHabitsAndLogs();
     }
   };
@@ -170,7 +164,7 @@ export default function App() {
     else setHabits(habits.filter(h => h.id !== id));
   };
 
-  // Helper array generator to map out the last 7 consecutive calendar dates
+  // Helper array generator for calendar dates
   const getPastSevenDays = () => {
     const dates = [];
     for (let i = 6; i >= 0; i--) {
@@ -194,7 +188,40 @@ export default function App() {
   const longestStreakMax = habits.length > 0 ? Math.max(...habits.map(h => h.streak || 0)) : 0; 
   const displayName = user?.user_metadata?.username || user?.email?.split('@')[0] || 'User';
 
-  // Gatekeeper: Show Authentication View if No User Session Exists
+  // FIX 1: Real-Time Achievements System Engine
+  const achievements = [
+    {
+      id: 'first_step',
+      title: 'First Steps',
+      desc: 'Create your very first habit routine.',
+      icon: '🌱',
+      isUnlocked: totalHabits > 0
+    },
+    {
+      id: 'momentum',
+      title: 'Building Momentum',
+      desc: 'Achieve a 3-day streak on any habit.',
+      icon: '🔥',
+      isUnlocked: habits.some(h => h.streak >= 3)
+    },
+    {
+      id: 'elite_streak',
+      title: 'Consistency Elite',
+      desc: 'Push a single habit streak up to 7 days.',
+      icon: '🏆',
+      isUnlocked: habits.some(h => h.streak >= 7)
+    },
+    {
+      id: 'perfect_day',
+      title: 'Flawless Victory',
+      desc: 'Complete 100% of your tracked habits today.',
+      icon: '⚡',
+      isUnlocked: totalHabits > 0 && completedToday === totalHabits
+    }
+  ];
+  const unlockedCount = achievements.filter(a => a.isUnlocked).length;
+
+  // Gatekeeper View
   if (!user) {
     return (
       <div className="auth-container">
@@ -239,10 +266,10 @@ export default function App() {
         <button className="logout-btn" onClick={handleLogout}>🚪 Log Out</button>
       </aside>
 
-      {/* Main Workspace */}
+      {/* Main Workspace Workspace */}
       <main className="main-content">
         
-        {/* Dashboard Tab Layout */}
+        {/* Dashboard Tab Panel */}
         {activeTab === 'dashboard' && (
           <>
             <header style={{ marginBottom: '2rem' }}>
@@ -269,7 +296,7 @@ export default function App() {
           </>
         )}
 
-        {/* Calendar Tab Layout */}
+        {/* Calendar Tab Panel */}
         {activeTab === 'calendar' && (
           <div>
             <header style={{ marginBottom: '2rem' }}>
@@ -282,7 +309,6 @@ export default function App() {
                 <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No habits available to generate a timeline for. Go create one!</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                  {/* Calendar Row Headers */}
                   <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', alignItems: 'center', borderBottom: '1px solid #333', paddingBottom: '0.5rem', fontWeight: 'bold' }}>
                     <span>Tracked Habit</span>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', textAlign: 'center', gap: '8px' }}>
@@ -295,7 +321,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Calendar Rows Map */}
                   {habits.map(habit => (
                     <div key={habit.id} style={{ display: 'grid', gridTemplateColumns: '200px 1fr', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid #222' }}>
                       <span style={{ fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '10px' }}>
@@ -303,7 +328,6 @@ export default function App() {
                       </span>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', justifyItems: 'center', gap: '8px' }}>
                         {pastSevenDays.map(day => {
-                          // Check if a completion log matches this day/habit criteria
                           const isLogDone = habitLogs.some(log => log.habit_id === habit.id && log.logged_date === day.rawString);
                           return (
                             <div 
@@ -336,7 +360,44 @@ export default function App() {
           </div>
         )}
 
-        {/* Habits Tab Layout */}
+        {/* FIX 2: Completed Achievements Tab Panel Layout */}
+        {activeTab === 'achievements' && (
+          <div>
+            <header style={{ marginBottom: '2rem' }}>
+              <h1>Hall of Trophies</h1>
+              <p style={{ color: 'var(--text-muted)' }}>Unlocked milestones update live as you maintain your consistency. ({unlockedCount} / {achievements.length})</p>
+            </header>
+
+            {/* Reuses your original habit-grid CSS layout properties for continuous design language */}
+            <div className="habits-grid">
+              {achievements.map(ach => (
+                <div 
+                  key={ach.id} 
+                  className={`enhanced-card ${ach.isUnlocked ? 'is-completed' : ''}`}
+                  style={{ opacity: ach.isUnlocked ? 1 : 0.45, filter: ach.isUnlocked ? 'none' : 'grayscale(60%)', transition: 'all 0.3s ease' }}
+                >
+                  <div className="card-header" style={{ marginBottom: '0.75rem' }}>
+                    <div className="card-title" style={{ fontSize: '1.2rem', gap: '12px' }}>
+                      <span style={{ fontSize: '1.75rem' }}>{ach.icon}</span>
+                      {ach.title}
+                    </div>
+                    <span className={`category-tag ${ach.isUnlocked ? 'cat-fitness' : 'cat-finance'}`}>
+                      {ach.isUnlocked ? '🏆 Unlocked' : '🔒 Locked'}
+                    </span>
+                  </div>
+                  
+                  <div className="card-stats" style={{ marginTop: '0.5rem', border: 'none', paddingTop: 0 }}>
+                    <p style={{ margin: 0, color: ach.isUnlocked ? 'inherit' : 'var(--text-muted)', fontSize: '0.95rem', lineHeight: '1.4' }}>
+                      {ach.desc}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Habits Tab Panel */}
         {activeTab === 'habits' && (
           <div>
             <header style={{ marginBottom: '2rem' }}>
@@ -395,8 +456,8 @@ export default function App() {
           </div>
         )}
 
-        {/* Fallback View Panel for upcoming modules */}
-        {!['dashboard', 'habits', 'calendar'].includes(activeTab) && (
+        {/* Fallback View Panel for remaining tabs */}
+        {!['dashboard', 'habits', 'calendar', 'achievements'].includes(activeTab) && (
           <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
             {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} space workspace view and modules coming soon!
           </div>
