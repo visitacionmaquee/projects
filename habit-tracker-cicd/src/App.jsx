@@ -1,57 +1,263 @@
 import { useState, useEffect } from 'react';
+import { supabase } from './supabaseClient';
 import './App.css';
 
 export default function App() {
-  const [habits, setHabits] = useState(() => {
-    const saved = localStorage.getItem('maquee-habits');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [user, setUser] = useState(null);
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
   
+  // Form Field States
+  const [identifier, setIdentifier] = useState(''); // Used for Login (Email or Username)
+  const [email, setEmail] = useState('');           // Used for Sign Up
+  const [username, setUsername] = useState('');       // Used for Sign Up
+  const [authPassword, setAuthPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  
+  const [habits, setHabits] = useState([]);
   const [activeTab, setActiveTab] = useState('habits');
 
+  // 1. Listen for Authentication Changes
   useEffect(() => {
-    localStorage.setItem('maquee-habits', JSON.stringify(habits));
-  }, [habits]);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // 2. Fetch Habits from Cloud Database when User Logs In
+  useEffect(() => {
+    if (!user) {
+      setHabits([]);
+      return;
+    }
+    fetchHabits();
+  }, [user]);
+
+  const fetchHabits = async () => {
+    const { data, error } = await supabase
+      .from('habits')
+      .select('*')
+      .order('created_at', { ascending: true });
+    
+    if (error) console.error('Error fetching habits:', error.message);
+    else setHabits(data || []);
+  };
+
+  // 3. Unified Auth Form Handler
+  const handleAuth = async (e) => {
+    e.preventDefault();
+    setAuthLoading(true);
+
+    if (isSignUp) {
+      // ---- SIGN UP FLOW ----
+      if (authPassword !== confirmPassword) {
+        alert("Passwords do not match!");
+        setAuthLoading(false);
+        return;
+      }
+
+      const formattedUsername = username.trim().toLowerCase();
+
+      const { error: signUpError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: authPassword,
+        options: {
+          data: { username: formattedUsername } // Pass username to user metadata
+        }
+      });
+
+      if (!signUpError) {
+        alert('Account created! Check your email for a confirmation link.');
+        // Reset states and swap views
+        setEmail('');
+        setUsername('');
+        setAuthPassword('');
+        setConfirmPassword('');
+        setIsSignUp(false);
+      } else {
+        alert(signUpError.message);
+      }
+
+    } else {
+      // ---- LOGIN FLOW (Email or Username) ----
+      let loginEmail = identifier.trim();
+
+      // If there is no '@', perform username lookup
+      if (!loginEmail.includes('@')) {
+        const formattedUsername = loginEmail.toLowerCase();
+
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('email')
+          .eq('username', formattedUsername)
+          .single();
+
+        if (profileError || !profile) {
+          alert("No account found with that username.");
+          setAuthLoading(false);
+          return;
+        }
+
+        loginEmail = profile.email; // Swap out username string for the actual email
+      }
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: loginEmail,
+        password: authPassword
+      });
+
+      if (signInError) alert(signInError.message);
+    }
+
+    setAuthLoading(false);
+  };
+
+  const handleLogout = () => supabase.auth.signOut();
+
+  // 4. Database CRUD Handlers
+  const handleAddHabit = async (e) => {
+    e.preventDefault();
+    const name = e.target.habitName.value.trim();
+    const category = e.target.habitCategory.value;
+    if (!name || !user) return;
+
+    const { data, error } = await supabase
+      .from('habits')
+      .insert([{ name, category, user_id: user.id }])
+      .select();
+
+    if (error) alert(error.message);
+    else {
+      setHabits([...habits, data[0]]);
+      e.target.reset();
+    }
+  };
+
+  const toggleHabit = async (id, currentStatus, currentStreak) => {
+    const nextState = !currentStatus;
+    const nextStreak = nextState ? currentStreak + 1 : Math.max(0, currentStreak - 1);
+
+    const { error } = await supabase
+      .from('habits')
+      .update({ completed_today: nextState, streak: nextStreak })
+      .eq('id', id);
+
+    if (error) alert(error.message);
+    else {
+      setHabits(habits.map(h => h.id === id ? { ...h, completed_today: nextState, streak: nextStreak } : h));
+    }
+  };
+
+  const deleteHabit = async (id) => {
+    const { error } = await supabase.from('habits').delete().eq('id', id);
+    if (error) alert(error.message);
+    else setHabits(habits.filter(h => h.id !== id));
+  };
 
   // Derived Analytics Data
   const totalHabits = habits.length;
-  const completedToday = habits.filter(h => h.completedToday).length;
+  const completedToday = habits.filter(h => h.completed_today).length;
   const completionRate = totalHabits > 0 ? Math.round((completedToday / totalHabits) * 100) : 0;
+
+  // Gatekeeper: Show Authentication View if No User Session Exists
+  if (!user) {
+    return (
+      <div className="auth-container">
+        <div className="auth-box">
+          <h2>🎯 Habit Spark</h2>
+          <p>{isSignUp ? 'Create your cloud account' : 'Log in to sync your habits'}</p>
+          
+          <form onSubmit={handleAuth}>
+            {isSignUp ? (
+              <>
+                <input 
+                  type="text" 
+                  placeholder="Username" 
+                  value={username} 
+                  onChange={(e) => setUsername(e.target.value)} 
+                  required 
+                />
+                <input 
+                  type="email" 
+                  placeholder="Your Email" 
+                  value={email} 
+                  onChange={(e) => setEmail(e.target.value)} 
+                  required 
+                />
+              </>
+            ) : (
+              <input 
+                type="text" 
+                placeholder="Your Email or Username" 
+                value={identifier} 
+                onChange={(e) => setIdentifier(e.target.value)} 
+                required 
+              />
+            )}
+
+            <input 
+              type="password" 
+              placeholder="Password" 
+              value={authPassword} 
+              onChange={(e) => setAuthPassword(e.target.value)} 
+              required 
+            />
+
+            {isSignUp && (
+              <input 
+                type="password" 
+                placeholder="Confirm Password" 
+                value={confirmPassword} 
+                onChange={(e) => setConfirmPassword(e.target.value)} 
+                required 
+              />
+            )}
+
+            <button type="submit" className="submit-btn" disabled={authLoading}>
+              {authLoading ? 'Processing...' : isSignUp ? 'Sign Up' : 'Log In'}
+            </button>
+          </form>
+
+          <button className="auth-toggle-btn" onClick={() => setIsSignUp(!isSignUp)}>
+            {isSignUp ? 'Already have an account? Log In' : "Don't have an account? Sign Up"}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="app-layout">
-      {/* 5. Left Sidebar Component */}
+      {/* Sidebar Layout */}
       <aside className="sidebar">
-        <h2>⚡ Habit Spark</h2>
-        <nav className="sidebar-menu">
-          <div className={`menu-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>📊 Dashboard</div>
-          <div className={`menu-item ${activeTab === 'habits' ? 'active' : ''}`} onClick={() => setActiveTab('habits')}>🔥 Habits</div>
-          <div className={`menu-item ${activeTab === 'calendar' ? 'active' : ''}`} onClick={() => setActiveTab('calendar')}>📅 Calendar</div>
-          <div className={`menu-item ${activeTab === 'achievements' ? 'active' : ''}`} onClick={() => setActiveTab('achievements')}>🏆 Achievements</div>
-          <div className={`menu-item ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>⚙️ Settings</div>
-        </nav>
+        <div>
+          <h2>⚡ Habit Spark</h2>
+          <nav className="sidebar-menu" style={{ marginTop: '2rem' }}>
+            <div className={`menu-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>📊 Dashboard</div>
+            <div className={`menu-item ${activeTab === 'habits' ? 'active' : ''}`} onClick={() => setActiveTab('habits')}>🔥 Habits</div>
+          </nav>
+        </div>
+        <button className="logout-btn" onClick={handleLogout}>🚪 Log Out</button>
       </aside>
 
       {/* Main Workspace */}
       <main className="main-content">
         <header style={{ marginBottom: '2rem' }}>
-          <h1>Welcome back, Maquee</h1>
-          <p style={{ color: 'var(--text-muted)' }}>Here is your consistency overview for today.</p>
+          <h1>Welcome back</h1>
+          <p style={{ color: 'var(--text-muted)' }}>Cloud syncing enabled via {user.email}</p>
         </header>
 
-        {/* 1. Dashboard Analytics Section */}
+        {/* Analytics Header Section */}
         <section className="stats-grid">
-          <div className="stat-card">
-            <span className="stat-label">🔥 Current Streak</span>
-            <span className="stat-value">12 Days</span>
-          </div>
           <div className="stat-card">
             <span className="stat-label">📈 Completion Rate</span>
             <span className="stat-value">{completionRate}%</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-label">🏆 Longest Streak</span>
-            <span className="stat-value">31 Days</span>
           </div>
           <div className="stat-card">
             <span className="stat-label">✅ Habits Completed Today</span>
@@ -59,10 +265,10 @@ export default function App() {
           </div>
         </section>
 
-        {/* 6. Daily Goal Progress Bar */}
+        {/* Global Progress Level Tracker */}
         <div className="progress-container">
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
-            <span style={{ fontWeight: '500' }}>Today's Progress</span>
+            <span style={{ fontWeight: '500' }}>Today's Target Progress</span>
             <span style={{ color: 'var(--text-muted)' }}>{completionRate}% Complete</span>
           </div>
           <div className="progress-bar-wrapper">
@@ -70,30 +276,10 @@ export default function App() {
           </div>
         </div>
 
-        {/* Temporary warning/placeholder while building tabs */}
         {activeTab === 'habits' ? (
           <div>
-            {/* Interactive Habit Creator Form */}
             <div className="habit-form-box">
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                const name = e.target.habitName.value.trim();
-                const category = e.target.habitCategory.value;
-                if (!name) return;
-
-                const newHabit = {
-                  id: crypto.randomUUID(),
-                  name,
-                  category,
-                  completedToday: false,
-                  streak: 0,
-                  lastCompleted: 'Never',
-                  completionRate: 100
-                };
-
-                setHabits([...habits, newHabit]);
-                e.target.reset();
-              }}>
+              <form onSubmit={handleAddHabit}>
                 <div className="form-row">
                   <input name="habitName" type="text" placeholder="What habit are we building today?..." maxLength={40} required />
                   <select name="habitCategory" defaultValue="Learning">
@@ -108,17 +294,14 @@ export default function App() {
               </form>
             </div>
 
-            {/* Enhanced Habit Cards Grid View */}
             <div className="habits-grid">
               {habits.length === 0 ? (
-                <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No habits tracked in this space yet. Add one above!</p>
+                <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No cloud-stored habits found. Add one above!</p>
               ) : (
                 habits.map((habit) => {
-                  // Resolve category classes
                   const catClass = habit.category ? habit.category.toLowerCase().replace(' ', '-') : 'learning';
-                  
                   return (
-                    <div key={habit.id} className={`enhanced-card ${habit.completedToday ? 'is-completed' : ''}`}>
+                    <div key={habit.id} className={`enhanced-card ${habit.completed_today ? 'is-completed' : ''}`}>
                       <div className="card-header">
                         <div className="card-title">
                           <span>{habit.category === 'Fitness' ? '💪' : habit.category === 'Learning' ? '📚' : habit.category === 'Gaming' ? '🎮' : habit.category === 'Finance' ? '💰' : '🧠'}</span>
@@ -129,36 +312,17 @@ export default function App() {
 
                       <div className="card-stats">
                         <span>🔥 Streak: <strong>{habit.streak} Days</strong></span>
-                        <span>📅 Last Completed: <strong>{habit.completedToday ? 'Today' : habit.lastCompleted}</strong></span>
-                        <span>📊 Completion Rate: <strong>{habit.completionRate}%</strong></span>
+                        <span>📅 Status: <strong>{habit.completed_today ? 'Completed Today' : 'Pending Action'}</strong></span>
                       </div>
 
                       <div className="card-actions">
                         <button 
                           className="action-btn complete-toggle"
-                          onClick={() => {
-                            setHabits(habits.map(h => {
-                              if (h.id === habit.id) {
-                                const nextState = !h.completedToday;
-                                return {
-                                  ...h,
-                                  completedToday: nextState,
-                                  streak: nextState ? h.streak + 1 : Math.max(0, h.streak - 1),
-                                  lastCompleted: nextState ? 'Today' : 'Yesterday'
-                                };
-                              }
-                              return h;
-                            }));
-                          }}
+                          onClick={() => toggleHabit(habit.id, habit.completed_today, habit.streak)}
                         >
-                          {habit.completedToday ? '✓ Completed' : 'Mark Complete'}
+                          {habit.completed_today ? '✓ Completed' : 'Mark Complete'}
                         </button>
-                        <button 
-                          className="action-btn delete-toggle"
-                          onClick={() => setHabits(habits.filter(h => h.id !== habit.id))}
-                        >
-                          Delete
-                        </button>
+                        <button className="action-btn delete-toggle" onClick={() => deleteHabit(habit.id)}>Delete</button>
                       </div>
                     </div>
                   );
@@ -168,7 +332,7 @@ export default function App() {
           </div>
         ) : (
           <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-            The {activeTab} workspace layout configuration is coming soon in Phase 4!
+            Analytics board and extra sub-panels coming soon!
           </div>
         )}
       </main>
